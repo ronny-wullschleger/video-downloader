@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import threading
 import uuid
@@ -14,7 +15,16 @@ import yt_dlp
 from validation import InvalidURL, validate_url
 
 ROOT = Path(__file__).resolve().parent
-DOWNLOAD_DIR = ROOT / "downloads"
+
+
+def _default_download_dir() -> Path:
+    override = os.environ.get("CELLULOID_DOWNLOAD_DIR")
+    if override:
+        return Path(override).expanduser()
+    return Path.home() / "Downloads"
+
+
+DOWNLOAD_DIR = _default_download_dir()
 
 QUALITY_FORMATS: dict[str, str] = {
     "best": "bv*+ba/b",
@@ -236,7 +246,7 @@ def _run_download(job_id: str) -> None:
     opts: dict[str, Any] = {
         **_ydl_base_opts(),
         "format": QUALITY_FORMATS[job.quality],
-        "outtmpl": str(DOWNLOAD_DIR / OUTTMPL),
+        "outtmpl": str(ROOT / OUTTMPL),
         "progress_hooks": [hook],
     }
     if job.quality != "audio":
@@ -246,7 +256,10 @@ def _run_download(job_id: str) -> None:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(job.url, download=True)
             info = _unwrap_playlist(info) if info else info
-            filename = _basename_from_info(info, ydl)
+            source = _file_from_info(info, ydl)
+            if source is None:
+                raise RuntimeError("Download finished but the file was not found.")
+            saved = _move_to_downloads(source)
             title = None
             thumbnail = None
             if info:
@@ -259,7 +272,7 @@ def _run_download(job_id: str) -> None:
                 eta=0,
                 title=title,
                 thumbnail=thumbnail,
-                filename=filename,
+                filename=saved.name,
                 error=None,
                 message="Saved.",
             )
@@ -321,7 +334,21 @@ def _unwrap_playlist(info: dict[str, Any]) -> dict[str, Any]:
     return info
 
 
-def _basename_from_info(info: dict[str, Any] | None, ydl: Any) -> str | None:
+def _move_to_downloads(source: Path) -> Path:
+    """Move the finished file from the app folder into DOWNLOAD_DIR."""
+    DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    dest = DOWNLOAD_DIR / source.name
+    if source.resolve() == dest.resolve():
+        return dest
+    if dest.exists():
+        dest.unlink()
+    shutil.move(str(source), str(dest))
+    if not dest.is_file():
+        raise RuntimeError("Could not move the file to downloads.")
+    return dest
+
+
+def _file_from_info(info: dict[str, Any] | None, ydl: Any) -> Path | None:
     if not info:
         return None
     candidates: list[str] = []
@@ -349,7 +376,5 @@ def _basename_from_info(info: dict[str, Any] | None, ydl: Any) -> str | None:
     for candidate in candidates:
         path = Path(candidate)
         if path.is_file():
-            return path.name
-    if candidates:
-        return Path(candidates[0]).name
+            return path
     return None

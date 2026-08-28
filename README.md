@@ -5,7 +5,7 @@ A local web UI that pulls a video onto this machine. Paste either:
 - a webpage URL that contains a video (YouTube, Vimeo, news sites — anything [yt-dlp](https://github.com/yt-dlp/yt-dlp) supports), or
 - a direct video file URL
 
-then pick a quality and download. Files are written to `./downloads` and never uploaded anywhere.
+then pick a quality and download. Files are written to your user **Downloads** folder (for example `C:\Users\<you>\Downloads`) and never uploaded anywhere.
 
 **Only download content you have the right to download.**
 
@@ -56,7 +56,9 @@ Quality options: **best** (default, merged video+audio), **1080p**, **720p**, **
 
 ## Docker
 
-The image includes Python, ffmpeg, and the app. Files land in `./downloads` on the host via a bind mount. The UI is published only on localhost, same as a local `python app.py` run.
+The image includes Python, ffmpeg, and the app. Files land in your user **Downloads** folder via a bind mount (`%USERPROFILE%\Downloads` on Windows). The UI is published only on localhost, same as a local `python app.py` run.
+
+Override the folder with `CELLULOID_DOWNLOAD_DIR` if needed.
 
 Start Docker Desktop / Rancher Desktop first so the daemon is running.
 
@@ -74,14 +76,14 @@ Open [http://127.0.0.1:8765](http://127.0.0.1:8765). Stop with `Ctrl+C`, or `doc
 
 ```bash
 docker build -t celluloid .
-docker run --rm -p 127.0.0.1:8765:8765 -v ./downloads:/app/downloads celluloid
+docker run --rm -p 127.0.0.1:8765:8765 -e CELLULOID_DOWNLOAD_DIR=/downloads -v "$HOME/Downloads:/downloads" celluloid
 ```
 
 PowerShell:
 
 ```powershell
 docker build -t celluloid .
-docker run --rm -p 127.0.0.1:8765:8765 -v ${PWD}/downloads:/app/downloads celluloid
+docker run --rm -p 127.0.0.1:8765:8765 -e CELLULOID_DOWNLOAD_DIR=/downloads -v "$env:USERPROFILE\Downloads:/downloads" celluloid
 ```
 
 The container listens on `0.0.0.0:8765` inside the network namespace (`CELLULOID_HOST` / `CELLULOID_PORT`). The compose file maps that to `127.0.0.1:8765` on the host.
@@ -98,4 +100,4 @@ Tests mock yt-dlp. They do not hit the network.
 
 - URLs must be `http` or `https`.
 - Playlist links download the first item only.
-- Saved names look like `Title [id].mp4` inside `downloads/`.
+- Saved names look like `Title [id].mp4` inside your Downloads folder.
