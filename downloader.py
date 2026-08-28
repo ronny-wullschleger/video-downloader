@@ -253,7 +253,7 @@ def _run_download(job_id: str) -> None:
                 title = info.get("title") or info.get("id")
                 thumbnail = info.get("thumbnail")
             if filename:
-                _delete_app_folder_copy(filename)
+                _keep_only_in_downloads(filename)
             store.update(
                 job_id,
                 status="done",
@@ -323,15 +323,20 @@ def _unwrap_playlist(info: dict[str, Any]) -> dict[str, Any]:
     return info
 
 
-def _delete_app_folder_copy(filename: str) -> None:
-    """Remove a same-named scratch file from the app folder after a successful save."""
+def _keep_only_in_downloads(filename: str) -> None:
+    """Make sure the finished file exists only in DOWNLOAD_DIR, never in two places."""
     dest = DOWNLOAD_DIR / filename
-    scratch = ROOT / filename
-    if not dest.is_file():
-        return
+    extra = ROOT / filename
     try:
-        if scratch.is_file() and scratch.resolve() != dest.resolve():
-            scratch.unlink()
+        if not extra.is_file():
+            return
+        if extra.resolve() == dest.resolve():
+            return
+        if dest.is_file():
+            extra.unlink()
+            return
+        DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(extra), str(dest))
     except OSError:
         return
 

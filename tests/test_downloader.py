@@ -197,7 +197,7 @@ def test_probe_rejects_bad_url():
         dl.probe("ftp://x")
 
 
-def test_app_folder_copy_deleted_after_successful_save(tmp_path, monkeypatch):
+def test_duplicate_in_app_folder_is_removed_when_downloads_has_the_file(tmp_path, monkeypatch):
     root = tmp_path / "app"
     downloads = root / "downloads"
     downloads.mkdir(parents=True)
@@ -205,22 +205,23 @@ def test_app_folder_copy_deleted_after_successful_save(tmp_path, monkeypatch):
     monkeypatch.setattr(dl, "DOWNLOAD_DIR", downloads)
     name = "Demo Clip [abc123].mp4"
     dest = downloads / name
-    scratch = root / name
+    extra = root / name
     dest.write_bytes(b"saved")
-    scratch.write_bytes(b"saved")
-    dl._delete_app_folder_copy(name)
+    extra.write_bytes(b"saved")
+    dl._keep_only_in_downloads(name)
     assert dest.is_file()
-    assert not scratch.exists()
+    assert not extra.exists()
 
 
-def test_app_folder_copy_kept_if_downloads_file_missing(tmp_path, monkeypatch):
+def test_file_downloaded_outside_downloads_is_moved_in(tmp_path, monkeypatch):
     root = tmp_path / "app"
     downloads = root / "downloads"
     downloads.mkdir(parents=True)
     monkeypatch.setattr(dl, "ROOT", root)
     monkeypatch.setattr(dl, "DOWNLOAD_DIR", downloads)
     name = "Demo Clip [abc123].mp4"
-    scratch = root / name
-    scratch.write_bytes(b"saved")
-    dl._delete_app_folder_copy(name)
-    assert scratch.is_file()
+    extra = root / name
+    extra.write_bytes(b"saved")
+    dl._keep_only_in_downloads(name)
+    assert (downloads / name).read_bytes() == b"saved"
+    assert not extra.exists()
