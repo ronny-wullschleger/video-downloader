@@ -252,6 +252,8 @@ def _run_download(job_id: str) -> None:
             if info:
                 title = info.get("title") or info.get("id")
                 thumbnail = info.get("thumbnail")
+            if filename:
+                _delete_app_folder_copy(filename)
             store.update(
                 job_id,
                 status="done",
@@ -319,6 +321,19 @@ def _unwrap_playlist(info: dict[str, Any]) -> dict[str, Any]:
         if entry:
             return entry
     return info
+
+
+def _delete_app_folder_copy(filename: str) -> None:
+    """Remove a same-named scratch file from the app folder after a successful save."""
+    dest = DOWNLOAD_DIR / filename
+    scratch = ROOT / filename
+    if not dest.is_file():
+        return
+    try:
+        if scratch.is_file() and scratch.resolve() != dest.resolve():
+            scratch.unlink()
+    except OSError:
+        return
 
 
 def _basename_from_info(info: dict[str, Any] | None, ydl: Any) -> str | None:

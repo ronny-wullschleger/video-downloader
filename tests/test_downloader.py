@@ -195,3 +195,32 @@ def test_probe_unwraps_playlist():
 def test_probe_rejects_bad_url():
     with pytest.raises(InvalidURL):
         dl.probe("ftp://x")
+
+
+def test_app_folder_copy_deleted_after_successful_save(tmp_path, monkeypatch):
+    root = tmp_path / "app"
+    downloads = root / "downloads"
+    downloads.mkdir(parents=True)
+    monkeypatch.setattr(dl, "ROOT", root)
+    monkeypatch.setattr(dl, "DOWNLOAD_DIR", downloads)
+    name = "Demo Clip [abc123].mp4"
+    dest = downloads / name
+    scratch = root / name
+    dest.write_bytes(b"saved")
+    scratch.write_bytes(b"saved")
+    dl._delete_app_folder_copy(name)
+    assert dest.is_file()
+    assert not scratch.exists()
+
+
+def test_app_folder_copy_kept_if_downloads_file_missing(tmp_path, monkeypatch):
+    root = tmp_path / "app"
+    downloads = root / "downloads"
+    downloads.mkdir(parents=True)
+    monkeypatch.setattr(dl, "ROOT", root)
+    monkeypatch.setattr(dl, "DOWNLOAD_DIR", downloads)
+    name = "Demo Clip [abc123].mp4"
+    scratch = root / name
+    scratch.write_bytes(b"saved")
+    dl._delete_app_folder_copy(name)
+    assert scratch.is_file()
