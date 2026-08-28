@@ -113,6 +113,16 @@ def wait_job(job_id: str, timeout: float = 2.0) -> dict:
     return snap
 
 
+def test_default_download_dir_uses_env(monkeypatch, tmp_path):
+    monkeypatch.setenv("CELLULOID_DOWNLOAD_DIR", str(tmp_path))
+    assert dl._default_download_dir() == tmp_path
+
+
+def test_default_download_dir_is_user_downloads(monkeypatch):
+    monkeypatch.delenv("CELLULOID_DOWNLOAD_DIR", raising=False)
+    assert dl._default_download_dir() == Path.home() / "Downloads"
+
+
 def test_start_download_rejects_bad_url():
     with pytest.raises(InvalidURL):
         dl.start_download("not-a-url", "best")

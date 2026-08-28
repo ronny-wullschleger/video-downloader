@@ -4,6 +4,8 @@ services:
     image: celluloid:local
     ports:
       - "127.0.0.1:8765:8765"
+    environment:
+      CELLULOID_DOWNLOAD_DIR: /downloads
     volumes:
-      - ./downloads:/app/downloads
+      - ${USERPROFILE}/Downloads:/downloads
     init: true

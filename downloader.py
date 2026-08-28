@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import threading
 import uuid
@@ -14,7 +15,16 @@ import yt_dlp
 from validation import InvalidURL, validate_url
 
 ROOT = Path(__file__).resolve().parent
-DOWNLOAD_DIR = ROOT / "downloads"
+
+
+def _default_download_dir() -> Path:
+    override = os.environ.get("CELLULOID_DOWNLOAD_DIR")
+    if override:
+        return Path(override).expanduser()
+    return Path.home() / "Downloads"
+
+
+DOWNLOAD_DIR = _default_download_dir()
 
 QUALITY_FORMATS: dict[str, str] = {
     "best": "bv*+ba/b",

@@ -4,7 +4,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     CELLULOID_HOST=0.0.0.0 \
-    CELLULOID_PORT=8765
+    CELLULOID_PORT=8765 \
+    CELLULOID_DOWNLOAD_DIR=/downloads
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg \
@@ -18,7 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py downloader.py validation.py ./
 COPY static ./static
 
-RUN mkdir -p /app/downloads
+RUN mkdir -p /downloads
 
 EXPOSE 8765
 
