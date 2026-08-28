@@ -128,9 +128,12 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 def main() -> None:
+    import os
     import uvicorn
 
-    uvicorn.run("app:app", host="127.0.0.1", port=8765, reload=False)
+    host = os.environ.get("CELLULOID_HOST", "127.0.0.1")
+    port = int(os.environ.get("CELLULOID_PORT", "8765"))
+    uvicorn.run("app:app", host=host, port=port, reload=False)
 
 
 if __name__ == "__main__":

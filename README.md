@@ -11,6 +11,8 @@ then pick a quality and download. Files are written to `./downloads` and never u
 
 ## Prerequisites
 
+**Either** Docker (see [Docker](#docker)), **or** a local Python install:
+
 - Python **3.11+**
 - **ffmpeg** on your `PATH` (needed to merge DASH/HLS video+audio; without it, some sites will fail with a clear error)
 - **yt-dlp** is installed from `requirements.txt` via pip (do not rely on a system copy)
@@ -49,6 +51,40 @@ python -m uvicorn app:app --host 127.0.0.1 --port 8765
 Open [http://127.0.0.1:8765](http://127.0.0.1:8765). The same process serves the UI, the API, and saved files under `/files/…`.
 
 Quality options: **best** (default, merged video+audio), **1080p**, **720p**, **audio**.
+
+`python app.py` listens on `127.0.0.1:8765` by default. Override with `CELLULOID_HOST` and `CELLULOID_PORT` if needed.
+
+## Docker
+
+The image includes Python, ffmpeg, and the app. Files land in `./downloads` on the host via a bind mount. The UI is published only on localhost, same as a local `python app.py` run.
+
+Start Docker Desktop / Rancher Desktop first so the daemon is running.
+
+### docker compose (recommended)
+
+From the project directory:
+
+```bash
+docker compose up --build
+```
+
+Open [http://127.0.0.1:8765](http://127.0.0.1:8765). Stop with `Ctrl+C`, or `docker compose down`.
+
+### docker build / run
+
+```bash
+docker build -t celluloid .
+docker run --rm -p 127.0.0.1:8765:8765 -v ./downloads:/app/downloads celluloid
+```
+
+PowerShell:
+
+```powershell
+docker build -t celluloid .
+docker run --rm -p 127.0.0.1:8765:8765 -v ${PWD}/downloads:/app/downloads celluloid
+```
+
+The container listens on `0.0.0.0:8765` inside the network namespace (`CELLULOID_HOST` / `CELLULOID_PORT`). The compose file maps that to `127.0.0.1:8765` on the host.
 
 ## Tests
 
