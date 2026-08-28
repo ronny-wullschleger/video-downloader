@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Celluloid — local video lab</title>
+  <style>
+    :root {
+      --bg: #0c0a08;
+      --bg-2: #14110e;
+      --panel: #191510;
+      --ink: #f4ece2;
+      --muted: #9a8d7e;
+      --line: #2c261e;
+      --gold: #d9a441;
+      --gold-2: #f0c56a;
+      --ember: #e24a32;
+      --ok: #8fbf6a;
+      --bad: #e07060;
+      --field: #100e0b;
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 500px at 50% -10%, rgba(217, 164, 65, 0.08), transparent 55%),
+        repeating-linear-gradient(
+          90deg,
+          transparent 0,
+          transparent 38px,
+          rgba(255, 255, 255, 0.015) 38px,
+          rgba(255, 255, 255, 0.015) 46px
+        ),
+        var(--bg);
+      font: 16px/1.45 "Segoe UI", "Helvetica Neue", ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: 0.01em;
+    }
+
+    .grain {
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      opacity: 0.07;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+      z-index: 0;
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 32px 20px 48px;
+    }
+
+    .card {
+      width: min(720px, 100%);
+      background: linear-gradient(180deg, #1d1812 0%, var(--panel) 40%);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      padding: 28px 28px 24px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 14px;
+      background:
+        repeating-linear-gradient(
+          180deg,
+          #0c0a08 0 10px,
+          transparent 10px 18px,
+          #0c0a08 18px 28px,
+          transparent 28px 36px
+        );
+      opacity: 0.55;
+    }
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: 0 0 0 auto;
+      width: 14px;
+      background:
+        repeating-linear-gradient(
+          180deg,
+          #0c0a08 0 10px,
+          transparent 10px 18px,
+          #0c0a08 18px 28px,
+          transparent 28px 36px
+        );
+      opacity: 0.55;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 16px;
+      padding: 4px 18px 18px;
+    }
+
+    .brand {
+      font-family: ui-serif, "Iowan Old Style", Palatino, Georgia, serif;
+      font-size: 28px;
+      letter-spacing: 0.18em;
+      font-weight: 600;
+      margin: 0;
+    }
+    .brand span {
+      color: var(--gold);
+    }
+
+    .tag {
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+
+    .lede {
+      margin: 0 18px 22px;
+      color: var(--muted);
+      max-width: 46ch;
+    }
+
+    label.url-label {
+      display: block;
+      margin: 0 18px 8px;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .url-row {
+      margin: 0 18px;
+    }
+
+    #url {
+      width: 100%;
+      height: 58px;
+      border: 1px solid #3a3228;
+      background: var(--field);
+      color: var(--ink);
+      border-radius: 14px;
+      padding: 0 18px;
+      font-size: 16px;
+      outline: none;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+    }
+    #url:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(217, 164, 65, 0.18);
+    }
+    #url::placeholder { color: #6d6358; }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      margin: 16px 18px 8px;
+    }
+
+    .qualities {
+      display: flex;
+      background: #100e0b;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px;
+      gap: 2px;
+    }
+
+    .qualities button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      padding: 8px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    .qualities button[aria-pressed="true"] {
+      background: #2a231c;
+      color: var(--gold-2);
+    }
+    .qualities button:focus-visible {
+      outline: 2px solid var(--gold);
+      outline-offset: 1px;
+    }
+
+    #go {
+      appearance: none;
+      border: 0;
+      background: linear-gradient(180deg, #f0c56a, var(--gold));
+      color: #1a1208;
+      font: inherit;
+      font-weight: 650;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 13px;
+      padding: 12px 22px;
+      border-radius: 999px;
+      cursor: pointer;
+      min-width: 148px;
+    }
+    #go:hover { filter: brightness(1.06); }
+    #go:disabled {
+      filter: saturate(0.4) brightness(0.8);
+      cursor: default;
+    }
+    #go:focus-visible {
+      outline: 2px solid var(--ink);
+      outline-offset: 2px;
+    }
+
+    .probe, .status {
+      margin: 18px 18px 0;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,0.22);
+      border-radius: 16px;
+      padding: 14px 16px;
+      min-height: 64px;
+    }
+
+    .probe { display: none; }
+    .probe.show { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: center; }
+    .probe img {
+      width: 96px;
+      height: 54px;
+      object-fit: cover;
+      border-radius: 8px;
+      background: #000;
+    }
+    .probe .meta .kicker {
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin: 0 0 4px;
+    }
+    .probe .meta h2 {
+      font-size: 16px;
+      margin: 0;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+    .probe .meta p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .bar {
+      height: 8px;
+      background: #2a231c;
+      border-radius: 99px;
+      overflow: hidden;
+      margin: 8px 0 10px;
+    }
+    .bar > i {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--ember), var(--gold));
+      border-radius: inherit;
+      transition: width 0.2s ease;
+    }
+
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      font-size: 13px;
+    }
+
+    .msg {
+      margin: 10px 0 0;
+      font-size: 14px;
+    }
+    .msg.ok { color: var(--ok); }
+    .msg.err { color: var(--bad); }
+    .msg a {
+      color: var(--gold-2);
+      text-underline-offset: 3px;
+    }
+
+    .banner {
+      display: none;
+      margin: 0 18px 16px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #5a3a20;
+      background: #24180f;
+      color: #e8c9a0;
+      font-size: 13px;
+    }
+    .banner.show { display: block; }
+
+    footer {
+      margin: 22px 18px 4px;
+      color: #6e655b;
+      font-size: 12px;
+      letter-spacing: 0.02em;
+    }
+  </style>
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="wrap">
+    <main class="card">
+      <header>
+        <h1 class="brand">CELLU<span>LOID</span></h1>
+        <div class="tag">local film lab</div>
+      </header>
+      <p class="lede">Paste a page that holds a video, or a direct file URL. The file stays on this machine.</p>
+      <div id="ffmpeg-banner" class="banner">ffmpeg is not on PATH. Some sites split video and audio — those downloads will fail until you install ffmpeg.</div>
+
+      <label class="url-label" for="url">Source</label>
+      <div class="url-row">
+        <input id="url" type="url" inputmode="url" autocomplete="off" spellcheck="false"
+               placeholder="https://…  YouTube, Vimeo, news, or a .mp4" />
+      </div>
+
+      <div class="toolbar">
+        <div class="qualities" role="group" aria-label="Quality">
+          <button type="button" data-quality="best" aria-pressed="true">Best</button>
+          <button type="button" data-quality="1080p" aria-pressed="false">1080p</button>
+          <button type="button" data-quality="720p" aria-pressed="false">720p</button>
+          <button type="button" data-quality="audio" aria-pressed="false">Audio</button>
+        </div>
+        <button type="button" id="go">Pull down</button>
+      </div>
+
+      <section id="probe" class="probe" aria-live="polite"></section>
+      <section id="status" class="status" hidden>
+        <div class="stats">
+          <span id="phase">Waiting</span>
+          <span id="pct"></span>
+          <span id="spd"></span>
+          <span id="eta"></span>
+        </div>
+        <div class="bar" aria-hidden="true"><i id="fill"></i></div>
+        <p id="msg" class="msg"></p>
+      </section>
+
+      <footer>Only download material you have the right to keep. Nothing leaves this computer.</footer>
+    </main>
+  </div>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const urlInput = $("url");
+    const go = $("go");
+    const probeEl = $("probe");
+    const statusEl = $("status");
+    const fill = $("fill");
+    const phase = $("phase");
+    const pct = $("pct");
+    const spd = $("spd");
+    const eta = $("eta");
+    const msg = $("msg");
+
+    let quality = "best";
+    let busy = false;
+    let probeTimer = null;
+    let source = null;
+
+    document.querySelectorAll("[data-quality]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        quality = btn.dataset.quality;
+        document.querySelectorAll("[data-quality]").forEach((b) => {
+          b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+        });
+      });
+    });
+
+    urlInput.addEventListener("input", () => {
+      clearTimeout(probeTimer);
+      probeTimer = setTimeout(runProbe, 650);
+    });
+    urlInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") startDownload();
+    });
+    go.addEventListener("click", startDownload);
+
+    fetch("/api/status")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.ffmpeg) $("ffmpeg-banner").classList.add("show");
+      })
+      .catch(() => {});
+
+    function setBusy(on) {
+      busy = on;
+      go.disabled = on;
+      urlInput.disabled = on;
+      go.textContent = on ? "Working…" : "Pull down";
+    }
+
+    function detailOf(data) {
+      if (!data) return "Something went wrong.";
+      if (typeof data.detail === "string") return data.detail;
+      if (Array.isArray(data.detail) && data.detail[0] && data.detail[0].msg) {
+        return data.detail[0].msg;
+      }
+      return "Something went wrong.";
+    }
+
+    async function runProbe() {
+      const url = urlInput.value.trim();
+      if (!/^https?:\/\//i.test(url)) {
+        probeEl.classList.remove("show");
+        probeEl.innerHTML = "";
+        return;
+      }
+      try {
+        const r = await fetch("/api/probe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          probeEl.classList.remove("show");
+          probeEl.innerHTML = "";
+          return;
+        }
+        const dur = formatDuration(data.duration);
+        const by = data.uploader ? escapeHtml(data.uploader) : "";
+        const thumb = data.thumbnail
+          ? `<img src="${escapeAttr(data.thumbnail)}" alt="">`
+          : `<img alt="">`;
+        probeEl.innerHTML = `
+          ${thumb}
+          <div class="meta">
+            <p class="kicker">${escapeHtml(data.extractor || "video")}</p>
+            <h2>${escapeHtml(data.title || "Untitled")}</h2>
+            <p>${[by, dur].filter(Boolean).join(" · ")}</p>
+          </div>`;
+        probeEl.classList.add("show");
+      } catch {
+        /* probe is optional */
+      }
+    }
+
+    async function startDownload() {
+      if (busy) return;
+      const url = urlInput.value.trim();
+      statusEl.hidden = false;
+      msg.className = "msg";
+      msg.textContent = "";
+      fill.style.width = "0%";
+      phase.textContent = "Starting";
+      pct.textContent = "";
+      spd.textContent = "";
+      eta.textContent = "";
+      setBusy(true);
+
+      try {
+        const r = await fetch("/api/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, quality }),
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          showError(detailOf(data));
+          setBusy(false);
+          return;
+        }
+        listen(data.id);
+      } catch {
+        showError("Could not reach the local server.");
+        setBusy(false);
+      }
+    }
+
+    function listen(id) {
+      if (source) source.close();
+      source = new EventSource("/api/jobs/" + encodeURIComponent(id) + "/events");
+      source.onmessage = (ev) => {
+        let job;
+        try { job = JSON.parse(ev.data); } catch { return; }
+        renderJob(job);
+        if (job.status === "done" || job.status === "error") {
+          source.close();
+          source = null;
+          setBusy(false);
+        }
+      };
+      source.onerror = () => {
+        if (source) source.close();
+        source = null;
+        poll(id);
+      };
+    }
+
+    async function poll(id) {
+      try {
+        const r = await fetch("/api/jobs/" + encodeURIComponent(id));
+        const job = await r.json();
+        if (!r.ok) {
+          showError(detailOf(job));
+          setBusy(false);
+          return;
+        }
+        renderJob(job);
+        if (job.status === "done" || job.status === "error") {
+          setBusy(false);
+          return;
+        }
+        setTimeout(() => poll(id), 400);
+      } catch {
+        showError("Lost the progress stream.");
+        setBusy(false);
+      }
+    }
+
+    function renderJob(job) {
+      const labels = {
+        queued: "Queued",
+        downloading: "Downloading",
+        processing: "Merging / remuxing",
+        done: "Saved",
+        error: "Failed",
+      };
+      phase.textContent = labels[job.status] || job.status;
+      if (job.percent != null) {
+        fill.style.width = Math.max(0, Math.min(100, job.percent)) + "%";
+        pct.textContent = job.percent.toFixed(1).replace(/\.0$/, "") + "%";
+      }
+      spd.textContent = job.speed ? formatSpeed(job.speed) : "";
+      eta.textContent = job.eta != null && job.status === "downloading" ? formatEta(job.eta) : "";
+
+      if (job.status === "done") {
+        msg.className = "msg ok";
+        const name = job.filename || "file";
+        const href = "/files/" + encodeURIComponent(name);
+        msg.innerHTML = `Saved as <a href="${href}" download>${escapeHtml(name)}</a>`;
+      } else if (job.status === "error") {
+        showError(job.error || "Download failed.");
+      } else if (job.message) {
+        msg.className = "msg";
+        msg.textContent = job.message;
+      }
+
+      if (job.title && !probeEl.classList.contains("show")) {
+        probeEl.innerHTML = `<div class="meta" style="grid-column:1/-1"><h2>${escapeHtml(job.title)}</h2></div>`;
+        probeEl.classList.add("show");
+      }
+    }
+
+    function showError(text) {
+      statusEl.hidden = false;
+      msg.className = "msg err";
+      msg.textContent = text;
+      phase.textContent = "Failed";
+    }
+
+    function formatSpeed(n) {
+      if (!n || n < 0) return "";
+      if (n < 1024) return Math.round(n) + " B/s";
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB/s";
+      return (n / (1024 * 1024)).toFixed(1) + " MB/s";
+    }
+
+    function formatEta(sec) {
+      sec = Math.max(0, Math.round(sec));
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return m + ":" + String(s).padStart(2, "0") + " left";
+    }
+
+    function formatDuration(sec) {
+      if (sec == null || sec === "") return "";
+      sec = Math.round(Number(sec));
+      if (!isFinite(sec) || sec < 0) return "";
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      if (h) return h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+      return m + ":" + String(s).padStart(2, "0");
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+    function escapeAttr(s) {
+      return escapeHtml(s).replace(/'/g, "&#39;");
+    }
+  </script>
+</body>
+</html>
