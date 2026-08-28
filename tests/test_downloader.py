@@ -123,22 +123,34 @@ def test_start_download_rejects_unknown_quality():
         dl.start_download("https://example.com/watch?v=1", "4k")
 
 
+def _patch_dirs(tmp_path, monkeypatch):
+    root = tmp_path / "app"
+    downloads = root / "downloads"
+    root.mkdir()
+    monkeypatch.setattr(dl, "ROOT", root)
+    monkeypatch.setattr(dl, "DOWNLOAD_DIR", downloads)
+    return root, downloads
+
+
 def test_download_orchestration_with_mocked_ydl(tmp_path, monkeypatch):
-    monkeypatch.setattr(dl, "DOWNLOAD_DIR", tmp_path)
+    root, downloads = _patch_dirs(tmp_path, monkeypatch)
     with patch("downloader.yt_dlp.YoutubeDL", FakeYDL):
         job = dl.start_download("https://example.com/watch?v=1", "best")
         snap = wait_job(job.id)
+    name = "Demo Clip [abc123].mp4"
     assert snap["status"] == "done"
-    assert snap["filename"] == "Demo Clip [abc123].mp4"
+    assert snap["filename"] == name
     assert snap["title"] == "Demo Clip"
     assert snap["percent"] == 100
-    assert (tmp_path / "Demo Clip [abc123].mp4").is_file()
+    assert (downloads / name).is_file()
+    assert not (root / name).exists()
     assert FakeYDL.last_opts["format"] == dl.QUALITY_FORMATS["best"]
     assert FakeYDL.last_opts["merge_output_format"] == "mp4"
+    assert Path(FakeYDL.last_opts["outtmpl"]).parent == root
 
 
 def test_audio_quality_skips_mp4_merge(tmp_path, monkeypatch):
-    monkeypatch.setattr(dl, "DOWNLOAD_DIR", tmp_path)
+    _patch_dirs(tmp_path, monkeypatch)
     with patch("downloader.yt_dlp.YoutubeDL", FakeYDL):
         job = dl.start_download("https://example.com/a.mp4", "audio")
         snap = wait_job(job.id)
@@ -147,8 +159,21 @@ def test_audio_quality_skips_mp4_merge(tmp_path, monkeypatch):
     assert FakeYDL.last_opts["format"] == dl.QUALITY_FORMATS["audio"]
 
 
+def test_finished_file_is_moved_out_of_app_folder(tmp_path, monkeypatch):
+    root, downloads = _patch_dirs(tmp_path, monkeypatch)
+    with patch("downloader.yt_dlp.YoutubeDL", FakeYDL):
+        job = dl.start_download("https://example.com/watch?v=1", "best")
+        snap = wait_job(job.id)
+    name = "Demo Clip [abc123].mp4"
+    dest = downloads / name
+    assert snap["status"] == "done"
+    assert dest.is_file()
+    assert dest.read_bytes() == b"fake-video"
+    assert not (root / name).exists()
+
+
 def test_ffmpeg_missing_is_plain_language(tmp_path, monkeypatch):
-    monkeypatch.setattr(dl, "DOWNLOAD_DIR", tmp_path)
+    _patch_dirs(tmp_path, monkeypatch)
     with patch("downloader.yt_dlp.YoutubeDL", FfmpegMissingYDL):
         job = dl.start_download("https://example.com/watch?v=1", "best")
         snap = wait_job(job.id)
@@ -159,7 +184,7 @@ def test_ffmpeg_missing_is_plain_language(tmp_path, monkeypatch):
 
 
 def test_generic_ydl_error_is_plain_language(tmp_path, monkeypatch):
-    monkeypatch.setattr(dl, "DOWNLOAD_DIR", tmp_path)
+    _patch_dirs(tmp_path, monkeypatch)
     with patch("downloader.yt_dlp.YoutubeDL", GenericFailYDL):
         job = dl.start_download("https://example.com/nope", "720p")
         snap = wait_job(job.id)
@@ -197,31 +222,16 @@ def test_probe_rejects_bad_url():
         dl.probe("ftp://x")
 
 
-def test_duplicate_in_app_folder_is_removed_when_downloads_has_the_file(tmp_path, monkeypatch):
+def test_move_to_downloads_leaves_only_the_downloads_copy(tmp_path, monkeypatch):
     root = tmp_path / "app"
     downloads = root / "downloads"
-    downloads.mkdir(parents=True)
+    root.mkdir()
     monkeypatch.setattr(dl, "ROOT", root)
     monkeypatch.setattr(dl, "DOWNLOAD_DIR", downloads)
     name = "Demo Clip [abc123].mp4"
-    dest = downloads / name
-    extra = root / name
-    dest.write_bytes(b"saved")
-    extra.write_bytes(b"saved")
-    dl._keep_only_in_downloads(name)
-    assert dest.is_file()
-    assert not extra.exists()
-
-
-def test_file_downloaded_outside_downloads_is_moved_in(tmp_path, monkeypatch):
-    root = tmp_path / "app"
-    downloads = root / "downloads"
-    downloads.mkdir(parents=True)
-    monkeypatch.setattr(dl, "ROOT", root)
-    monkeypatch.setattr(dl, "DOWNLOAD_DIR", downloads)
-    name = "Demo Clip [abc123].mp4"
-    extra = root / name
-    extra.write_bytes(b"saved")
-    dl._keep_only_in_downloads(name)
-    assert (downloads / name).read_bytes() == b"saved"
-    assert not extra.exists()
+    source = root / name
+    source.write_bytes(b"saved")
+    dest = dl._move_to_downloads(source)
+    assert dest == downloads / name
+    assert dest.read_bytes() == b"saved"
+    assert not source.exists()

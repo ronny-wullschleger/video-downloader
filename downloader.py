@@ -236,7 +236,7 @@ def _run_download(job_id: str) -> None:
     opts: dict[str, Any] = {
         **_ydl_base_opts(),
         "format": QUALITY_FORMATS[job.quality],
-        "outtmpl": str(DOWNLOAD_DIR / OUTTMPL),
+        "outtmpl": str(ROOT / OUTTMPL),
         "progress_hooks": [hook],
     }
     if job.quality != "audio":
@@ -246,14 +246,15 @@ def _run_download(job_id: str) -> None:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(job.url, download=True)
             info = _unwrap_playlist(info) if info else info
-            filename = _basename_from_info(info, ydl)
+            source = _file_from_info(info, ydl)
+            if source is None:
+                raise RuntimeError("Download finished but the file was not found.")
+            saved = _move_to_downloads(source)
             title = None
             thumbnail = None
             if info:
                 title = info.get("title") or info.get("id")
                 thumbnail = info.get("thumbnail")
-            if filename:
-                _keep_only_in_downloads(filename)
             store.update(
                 job_id,
                 status="done",
@@ -261,7 +262,7 @@ def _run_download(job_id: str) -> None:
                 eta=0,
                 title=title,
                 thumbnail=thumbnail,
-                filename=filename,
+                filename=saved.name,
                 error=None,
                 message="Saved.",
             )
@@ -323,25 +324,21 @@ def _unwrap_playlist(info: dict[str, Any]) -> dict[str, Any]:
     return info
 
 
-def _keep_only_in_downloads(filename: str) -> None:
-    """Make sure the finished file exists only in DOWNLOAD_DIR, never in two places."""
-    dest = DOWNLOAD_DIR / filename
-    extra = ROOT / filename
-    try:
-        if not extra.is_file():
-            return
-        if extra.resolve() == dest.resolve():
-            return
-        if dest.is_file():
-            extra.unlink()
-            return
-        DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(extra), str(dest))
-    except OSError:
-        return
+def _move_to_downloads(source: Path) -> Path:
+    """Move the finished file from the app folder into DOWNLOAD_DIR."""
+    DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    dest = DOWNLOAD_DIR / source.name
+    if source.resolve() == dest.resolve():
+        return dest
+    if dest.exists():
+        dest.unlink()
+    shutil.move(str(source), str(dest))
+    if not dest.is_file():
+        raise RuntimeError("Could not move the file to downloads.")
+    return dest
 
 
-def _basename_from_info(info: dict[str, Any] | None, ydl: Any) -> str | None:
+def _file_from_info(info: dict[str, Any] | None, ydl: Any) -> Path | None:
     if not info:
         return None
     candidates: list[str] = []
@@ -369,7 +366,5 @@ def _basename_from_info(info: dict[str, Any] | None, ydl: Any) -> str | None:
     for candidate in candidates:
         path = Path(candidate)
         if path.is_file():
-            return path.name
-    if candidates:
-        return Path(candidates[0]).name
+            return path
     return None
